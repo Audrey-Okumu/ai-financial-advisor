@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import google.generativeai as genai
+import google.genai as genai  
 from datetime import datetime
 from dotenv import load_dotenv
 import os
@@ -37,7 +37,8 @@ if not api_key:
     st.warning("❌ Gemini API key is required. Add `GEMINI_API_KEY` to your `.env` file or in Streamlit Secrets.")
     st.stop()
 
-genai.configure(api_key=api_key)
+# Configure the new GenAI client
+client = genai.Client(api_key=api_key)
 
 # ====================== SESSION STATE ======================
 if 'expenses' not in st.session_state:
@@ -77,7 +78,6 @@ if st.button("Add Expense", type="primary"):
         new_row = pd.DataFrame({"Category": [category], "Amount": [amount]})
         st.session_state.expenses = pd.concat([st.session_state.expenses, new_row], ignore_index=True)
         st.success(f"✅ Added **{category}**: KES {amount:,.0f}")
-        # Removed st.rerun() here to avoid interfering with other buttons
     else:
         st.error("Amount must be greater than zero.")
 
@@ -88,7 +88,7 @@ if not st.session_state.expenses.empty:
     edited_df = st.data_editor(
         st.session_state.expenses,
         num_rows="dynamic",
-        use_container_width=True,
+        width="stretch",                    # Fixed deprecation
         key="expenses_editor",
         hide_index=True,
         column_config={
@@ -112,7 +112,6 @@ if not st.session_state.expenses.empty:
     total_spent = st.session_state.expenses['Amount'].sum()
     remaining = income - total_spent
 
-    # Metrics
     col_a, col_b, col_c = st.columns(3)
     with col_a:
         st.metric("Total Spent", f"KES {total_spent:,.0f}")
@@ -124,14 +123,13 @@ if not st.session_state.expenses.empty:
         st.metric("Savings Goal Progress", f"{progress:.0f}%", 
                   delta=f"Short by KES {(savings_goal - remaining):,.0f}" if remaining < savings_goal else "On Track ✅")
 
-    # Pie Chart
     fig = px.pie(
         st.session_state.expenses, 
         names="Category", 
         values="Amount", 
         title="Spending Breakdown by Category"
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")   # Fixed deprecation
 
     # Warnings
     if remaining < 0:
@@ -141,42 +139,43 @@ if not st.session_state.expenses.empty:
     elif remaining < savings_goal:
         st.info("💡 You are close to your savings goal. Consider reducing discretionary spending.")
 
-    # ====================== AI ADVICE SECTION (Fixed) ======================
-    if st.button("🤖 Get Personalized AI Advice from PesaSmart", type="primary", key="ai_advice_btn"):
-        with st.spinner("Generating intelligent financial advice using Gemini..."):
+    # ====================== AI ADVICE ======================
+    if st.button("🤖 Get Personalized AI Advice from PesaSmart", type="primary", key="ai_btn"):
+        with st.spinner("Generating advice using Gemini..."):
             expenses_summary = st.session_state.expenses.groupby('Category')['Amount'].sum().to_dict()
 
             prompt = f"""
             You are PesaSmart, a friendly and practical Kenyan financial advisor.
-            
+
             User Information:
             - Monthly Income: KES {income:,.0f}
             - Total Spent: KES {total_spent:,.0f}
-            - Money Remaining: KES {remaining:,.0f}
+            - Remaining: KES {remaining:,.0f}
             - Savings Goal: KES {savings_goal:,.0f}
-            - Current Month: {current_month}
-            - Expense Breakdown: {expenses_summary}
+            - Month: {current_month}
+            - Expenses: {expenses_summary}
 
-            Provide **short, actionable, and encouraging advice** in 5-7 bullet points.
-            Focus on immediate steps, high-spending categories, and achieving the savings goal.
-            Keep tone positive, realistic, and relevant to Kenyan students or diaspora.
+            Give short, actionable, encouraging advice in 5-7 bullet points.
+            Focus on high-spending categories, protecting savings, and realistic Kenyan tips (HELB, M-Pesa, etc.).
+            Keep tone positive and motivating.
             """
 
             try:
-                model = genai.GenerativeModel('gemini-2.0-flash')
-                response = model.generate_content(prompt)
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=prompt
+                )
                 st.success("### 💡 PesaSmart AI Advice")
                 st.markdown(response.text)
             except Exception as e:
-                st.error(f"Failed to generate advice: {str(e)}")
-                st.info("Tip: Make sure your Gemini API key is valid and you have internet connection.")
+                st.error(f"Error generating advice: {str(e)}")
 
 else:
-    st.info("Add at least one expense above to see analysis, charts, and AI advice.")
+    st.info("Add at least one expense to see analysis and AI advice.")
 
 # ====================== FOOTER ======================
 st.markdown("---")
 st.markdown("""
 
-This AI-powered financial advisor demonstrates building intelligent agents for **financial reporting automation**, budgeting, and advisory services.
+This AI-powered financial advisor demonstrates building intelligent agents for financial reporting automation, budgeting, and advisory services.
 """)
