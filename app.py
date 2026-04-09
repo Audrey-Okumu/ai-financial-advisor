@@ -19,7 +19,6 @@ st.set_page_config(
 st.title("💰 PesaSmart: AI Personal Financial Advisor")
 st.markdown("""
 **Helping Kenyan students and diaspora manage money smarter**  
-Built as preparation for the **Vunoh Global AI Internship**
 """)
 
 # ====================== GEMINI API KEY SETUP ======================
@@ -78,7 +77,7 @@ if st.button("Add Expense", type="primary"):
         new_row = pd.DataFrame({"Category": [category], "Amount": [amount]})
         st.session_state.expenses = pd.concat([st.session_state.expenses, new_row], ignore_index=True)
         st.success(f"✅ Added **{category}**: KES {amount:,.0f}")
-        st.rerun()   # Force refresh so table updates immediately
+        # Removed st.rerun() here to avoid interfering with other buttons
     else:
         st.error("Amount must be greater than zero.")
 
@@ -86,7 +85,6 @@ if st.button("Add Expense", type="primary"):
 st.subheader(f"📊 Your Expenses - {current_month}")
 
 if not st.session_state.expenses.empty:
-    # Editable table with delete + edit support
     edited_df = st.data_editor(
         st.session_state.expenses,
         num_rows="dynamic",
@@ -108,11 +106,9 @@ if not st.session_state.expenses.empty:
         }
     )
 
-    # Safely update session state with changes from data_editor (including deletes & edits)
     if not edited_df.equals(st.session_state.expenses):
         st.session_state.expenses = edited_df.reset_index(drop=True)
 
-    # Calculations
     total_spent = st.session_state.expenses['Amount'].sum()
     remaining = income - total_spent
 
@@ -145,8 +141,8 @@ if not st.session_state.expenses.empty:
     elif remaining < savings_goal:
         st.info("💡 You are close to your savings goal. Consider reducing discretionary spending.")
 
-    # ====================== AI ADVICE ======================
-    if st.button("🤖 Get Personalized AI Advice from PesaSmart", type="primary"):
+    # ====================== AI ADVICE SECTION (Fixed) ======================
+    if st.button("🤖 Get Personalized AI Advice from PesaSmart", type="primary", key="ai_advice_btn"):
         with st.spinner("Generating intelligent financial advice using Gemini..."):
             expenses_summary = st.session_state.expenses.groupby('Category')['Amount'].sum().to_dict()
 
@@ -161,8 +157,9 @@ if not st.session_state.expenses.empty:
             - Current Month: {current_month}
             - Expense Breakdown: {expenses_summary}
 
-            Provide short, actionable, and encouraging advice in 5-7 bullet points.
-            Keep tone positive and realistic.
+            Provide **short, actionable, and encouraging advice** in 5-7 bullet points.
+            Focus on immediate steps, high-spending categories, and achieving the savings goal.
+            Keep tone positive, realistic, and relevant to Kenyan students or diaspora.
             """
 
             try:
@@ -172,9 +169,10 @@ if not st.session_state.expenses.empty:
                 st.markdown(response.text)
             except Exception as e:
                 st.error(f"Failed to generate advice: {str(e)}")
+                st.info("Tip: Make sure your Gemini API key is valid and you have internet connection.")
 
 else:
-    st.info("Add expenses using the form above.")
+    st.info("Add at least one expense above to see analysis, charts, and AI advice.")
 
 # ====================== FOOTER ======================
 st.markdown("---")
