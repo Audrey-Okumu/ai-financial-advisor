@@ -38,7 +38,6 @@ if not api_key:
     st.warning("❌ Gemini API key is required. Add `GEMINI_API_KEY` to your `.env` file or in Streamlit Secrets.")
     st.stop()
 
-# Configure Gemini
 genai.configure(api_key=api_key)
 
 # ====================== SESSION STATE ======================
@@ -79,6 +78,7 @@ if st.button("Add Expense", type="primary"):
         new_row = pd.DataFrame({"Category": [category], "Amount": [amount]})
         st.session_state.expenses = pd.concat([st.session_state.expenses, new_row], ignore_index=True)
         st.success(f"✅ Added **{category}**: KES {amount:,.0f}")
+        st.rerun()   # Force refresh so table updates immediately
     else:
         st.error("Amount must be greater than zero.")
 
@@ -86,12 +86,12 @@ if st.button("Add Expense", type="primary"):
 st.subheader(f"📊 Your Expenses - {current_month}")
 
 if not st.session_state.expenses.empty:
-    # Editable table with delete support
+    # Editable table with delete + edit support
     edited_df = st.data_editor(
         st.session_state.expenses,
-        num_rows="dynamic",          # Allows adding rows from the table too
+        num_rows="dynamic",
         use_container_width=True,
-        key="expenses_editor",       # Critical for session state persistence
+        key="expenses_editor",
         hide_index=True,
         column_config={
             "Category": st.column_config.SelectboxColumn(
@@ -108,10 +108,11 @@ if not st.session_state.expenses.empty:
         }
     )
 
-    # Update session state when user edits or deletes rows
+    # Safely update session state with changes from data_editor (including deletes & edits)
     if not edited_df.equals(st.session_state.expenses):
         st.session_state.expenses = edited_df.reset_index(drop=True)
 
+    # Calculations
     total_spent = st.session_state.expenses['Amount'].sum()
     remaining = income - total_spent
 
@@ -136,7 +137,7 @@ if not st.session_state.expenses.empty:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Rule-based Warnings
+    # Warnings
     if remaining < 0:
         st.error("🚨 **Overspending Alert!** You have gone over your income.")
     elif remaining < savings_goal * 0.3:
@@ -144,7 +145,7 @@ if not st.session_state.expenses.empty:
     elif remaining < savings_goal:
         st.info("💡 You are close to your savings goal. Consider reducing discretionary spending.")
 
-    # ====================== AI ADVICE SECTION ======================
+    # ====================== AI ADVICE ======================
     if st.button("🤖 Get Personalized AI Advice from PesaSmart", type="primary"):
         with st.spinner("Generating intelligent financial advice using Gemini..."):
             expenses_summary = st.session_state.expenses.groupby('Category')['Amount'].sum().to_dict()
@@ -160,13 +161,8 @@ if not st.session_state.expenses.empty:
             - Current Month: {current_month}
             - Expense Breakdown: {expenses_summary}
 
-            Provide **short, actionable, and encouraging advice** in 5-7 bullet points.
-            Focus on:
-            - Immediate steps to improve the situation
-            - Specific suggestions for high-spending categories
-            - How to protect or achieve the savings goal
-            - Realistic tips relevant to Kenyan students or diaspora (mention HELB, M-Pesa, etc.)
-            Keep the tone positive, realistic, and motivating.
+            Provide short, actionable, and encouraging advice in 5-7 bullet points.
+            Keep tone positive and realistic.
             """
 
             try:
@@ -176,14 +172,13 @@ if not st.session_state.expenses.empty:
                 st.markdown(response.text)
             except Exception as e:
                 st.error(f"Failed to generate advice: {str(e)}")
-                st.info("Tip: Check your Gemini API key and internet connection.")
 
 else:
-    st.info("Add at least one expense above to see analysis, charts, and AI advice.")
+    st.info("Add expenses using the form above.")
 
 # ====================== FOOTER ======================
 st.markdown("---")
-st.markdown("""  
+st.markdown("""
+
 This AI-powered financial advisor demonstrates building intelligent agents for **financial reporting automation**, budgeting, and advisory services.
 """)
-
